@@ -245,6 +245,8 @@ class Group_Control_Typography extends Group_Control_Base {
 				$field['selectors'] = [
 					'{{SELECTOR}}' => $selector_value,
 				];
+
+				$field['frontend_available'] = true;
 			}
 		);
 

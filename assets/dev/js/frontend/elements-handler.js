@@ -10,6 +10,7 @@ import textEditorHandler from './handlers/text-editor';
 import sectionHandler from './handlers/section/section';
 import columnHandler from './handlers/column';
 import globalHandler from './handlers/global';
+import maskHandler from './handlers/mask';
 
 module.exports = function( $ ) {
 	const self = this;
@@ -36,6 +37,7 @@ module.exports = function( $ ) {
 
 	const addGlobalHandlers = function() {
 		elementorFrontend.hooks.addAction( 'frontend/element_ready/global', globalHandler );
+		elementorFrontend.hooks.addAction( 'frontend/element_ready/global', maskHandler );
 	};
 
 	const addElementsHandlers = function() {
