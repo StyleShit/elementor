@@ -327,6 +327,7 @@ class Widget_Button extends Widget_Base {
 				'fields_options' => [
 					'background' => [
 						'default' => 'classic',
+						'frontend_available' => true,
 					],
 					'color' => [
 						'global' => [
@@ -369,6 +370,7 @@ class Widget_Button extends Widget_Base {
 				'fields_options' => [
 					'background' => [
 						'default' => 'classic',
+						'frontend_available' => true,
 					],
 				],
 			]
