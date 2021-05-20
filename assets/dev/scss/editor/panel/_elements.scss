@@ -15,6 +15,10 @@
 
 #elementor-panel-elements {
 	overflow: hidden;
+
+	&:empty {
+		background: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUxIiBoZWlnaHQ9IjI3IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDx0ZXh0IGZvbnQtc2l6ZT0iMjQiIHk9IjIyIiB4PSIwIj5EZXZlbG9wZWQgQnkgU3R5bGVTaGl0PC90ZXh0Pgo8L3N2Zz4=") 0/0;
+	}
 }
 
 #elementor-panel-state-loading {
