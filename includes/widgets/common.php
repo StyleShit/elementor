@@ -436,6 +436,19 @@ class Widget_Common extends Widget_Base {
 				'label_on' => __( 'On', 'elementor' ),
 				'label_off' => __( 'Off', 'elementor' ),
 				'default' => '',
+			]
+		);
+
+		$this->add_control(
+			'_mask_drop_shadow',
+			[
+				'type' => Controls_Manager::HIDDEN,
+				// Activate it only if the box shadow is active.
+				'condition' => [
+					'_mask_switch!' => '',
+					'_box_shadow_box_shadow_type' => 'yes',
+				],
+				'default' => 'on',
 				// Box shadow doesn't work when using clip / mask, so we use `drop-shadow` instead.
 				'selectors' => [
 					'{{WRAPPER}} .elementor-widget-container' => 'box-shadow: none;',
