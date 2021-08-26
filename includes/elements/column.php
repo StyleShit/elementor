@@ -265,6 +265,31 @@ class Element_Column extends Element_Base {
 			]
 		);
 
+		$this->add_control(
+			'flex_basis',
+			[
+				'label' => esc_html__( 'Custom Width', 'elementor' ),
+				'type' => Controls_Manager::SLIDER,
+				'default' => [
+					'unit' => '%',
+				],
+				'size_units' => [ 'px', '%' ],
+				'range' => [
+					'px' => [
+						'max' => 1000,
+						'step' => 10,
+					],
+					'%' => [
+						'max' => 100,
+						'step' => 1,
+					],
+				],
+				'selectors' => [
+					'{{WRAPPER}}' => 'flex-shrink: 0; flex-basis: {{SIZE}}{{UNIT}};',
+				],
+			]
+		);
+
 		$this->end_controls_section();
 
 		$this->start_controls_section(
