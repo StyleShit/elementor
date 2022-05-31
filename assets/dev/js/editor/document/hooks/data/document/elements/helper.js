@@ -14,7 +14,7 @@ export default class Helper {
 				/**
 				 * TODO: Try improve performance of using 'document/elements/create` instead of manual create.
 				 */
-				const createdContainer = container.view.addElement( model ).getContainer();
+				const createdContainer = container.view.addElement( model, { edit: false } ).getContainer();
 
 				$e.store.dispatch(
 					$e.store.get( 'document/elements' ).actions.create( {
