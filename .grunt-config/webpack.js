@@ -106,6 +106,7 @@ const entry = {
 	'admin-top-bar': path.resolve( __dirname, '../modules/admin-top-bar/assets/js/admin.js' ),
 	'container-converter': path.resolve( __dirname, '../modules/container-converter/assets/js/editor/module.js' ),
 	'web-cli': path.resolve( __dirname, '../modules/web-cli/assets/js/index.js' ),
+	'import-export-admin': path.resolve( __dirname, '../core/app/modules/import-export/assets/js/admin.js' ),
 };
 
 const frontendEntries = {

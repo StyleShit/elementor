@@ -1,5 +1,5 @@
 <?php
-namespace Elementor\Tests\Phpunit\Elementor\Core\Utils;
+namespace Elementor\Tests\Phpunit\Elementor\Core\Utils\ImportExport;
 
 use Elementor\Core\Utils\ImportExport\WP_Exporter;
 use ElementorEditorTesting\Elementor_Test_Base;
@@ -161,10 +161,33 @@ class Test_WP_Exporter extends Elementor_Test_Base {
 		$content = $exporter->run();
 
 		// Assert.
-		$this->assertCount( 1, $content['ids'] );
+		// The featured image is included as attachment and will not count at the content ids.
 		$this->assertEquals( [ $post->ID ], $content['ids'] );
 
-		$include_attachment = (boolean) strstr( $content['xml'], '<wp:attachment_url>' );
+		$include_attachment = (boolean) strstr(
+			$content['xml'],
+			'<wp:attachment_url>'
+		);
+
 		$this->assertTrue( $include_attachment );
+	}
+
+	/**
+	 * Return wrapped given string in XML CDATA tag.
+	 *
+	 * @param string $str String to wrap in XML CDATA tag.
+	 *
+	 * @return string
+	 */
+	private function wxr_cdata( $str ) {
+		$str = (string) $str;
+
+		if ( ! seems_utf8( $str ) ) {
+			$str = utf8_encode( $str );
+		}
+
+		$str = '<![CDATA[' . str_replace( ']]>', ']]]]><![CDATA[>', $str ) . ']]>';
+
+		return $str;
 	}
 }

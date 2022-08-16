@@ -1,63 +1,129 @@
 <?php
 
-namespace Elementor\Core\App\Modules\ImportExport;
+namespace Elementor\Core\App\Modules\ImportExport\Processes;
 
 use Elementor\Core\App\Modules\ImportExport\Compatibility\Base_Adapter;
 use Elementor\Core\App\Modules\ImportExport\Compatibility\Envato;
 use Elementor\Core\App\Modules\ImportExport\Compatibility\Kit_Library;
-use Elementor\Core\App\Modules\ImportExport\Content\Elementor_Content;
-use Elementor\Core\App\Modules\ImportExport\Content\Plugins;
-use Elementor\Core\App\Modules\ImportExport\Content\Site_Settings;
-use Elementor\Core\App\Modules\ImportExport\Content\Taxonomies;
-use Elementor\Core\App\Modules\ImportExport\Content\Templates;
-use Elementor\Core\App\Modules\ImportExport\Content\Wp_Content;
+use Elementor\Core\App\Modules\ImportExport\Utils;
+use Elementor\Core\Base\Document;
 use Elementor\Plugin;
-class Import {
-	const NATIVE_WP_POST_TYPES = [ 'post', 'page', 'nav_menu_item' ];
+
+class Import extends Process_Base {
 	const MANIFEST_ERROR_KEY = 'manifest-error';
-	const MISSING_TMP_FOLDER_ERROR_KEY = 'missing-tmp-folder-error';
 
-	private $runners;
+	const SESSION_DOES_NOT_EXITS_ERROR = 'session-does-not-exits-error';
 
-	private $extracted_directory_path;
+	const ZIP_FILE_ERROR_KEY = 'zip-file-error';
 
+	/**
+	 * The session ID of the import process.
+	 * This ID is uniquely generated for each import process (by the temp folder which contains the extracted kit files).
+	 *
+	 * @var string
+	 */
+	private $session_id;
+
+	/**
+	 * Adapter for the kit compatibility.
+	 *
+	 * @var Base_Adapter[]
+	 */
 	private $adapters;
 
-	private $manifest;
-
+	/**
+	 * Document's elements that imported during the process.
+	 *
+	 * @var array
+	 */
 	private $documents_elements = [];
 
+	/**
+	 * Path to the extracted kit files.
+	 *
+	 * @var string
+	 */
+	private $extracted_directory_path;
+
+	/**
+	 * Imported kit manifest.
+	 *
+	 * @var array
+	 */
+	private $manifest;
+
+	/**
+	 * Imported kit site settings. (e.g: custom_colors, custom_typography, etc.)
+	 *
+	 * @var array
+	 */
 	private $site_settings;
 
+	/**
+	 * Selected content types to import.
+	 *
+	 * @var array
+	 */
 	private $settings_include;
 
+	/**
+	 * Referer of the import. (e.g: kit-library, local, etc.)
+	 *
+	 * @var string
+	 */
 	private $settings_referrer;
 
+	/**
+	 * Selected elementor templates conditions to override.
+	 *
+	 * @var array
+	 */
 	private $settings_selected_override_conditions;
 
+	/**
+	 * Selected custom post types to import.
+	 *
+	 * @var array
+	 */
 	private $settings_selected_custom_post_types;
 
+	/**
+	 * Selected plugins to import.
+	 *
+	 * @var array
+	 */
 	private $settings_selected_plugins;
 
+	/**
+	 * The imported data output.
+	 *
+	 * @var array
+	 */
 	private $imported_data = [];
 
-	private $session;
-
+	/**
+	 * @param $path string session_id | zip_file_path
+	 * @param $settings array Use to determine which content to import.
+	 *      (e.g: include, selected_plugins, selected_cpt, selected_override_conditions, etc.)
+	 * @throws \Exception
+	 */
 	public function __construct( $path, $settings = [] ) {
-		$file_extension = pathinfo( $path, PATHINFO_EXTENSION );
-		if ( 'zip' === $file_extension || 'tmp' === $file_extension ) {
+		parent::__construct();
+
+		if ( is_file( $path ) ) {
 			$this->extracted_directory_path = $this->extract_zip( $path );
 		} else {
 			$elementor_tmp_directory = Plugin::$instance->uploads_manager->get_temp_dir();
 			$path = $elementor_tmp_directory . basename( $path );
 
 			if ( ! is_dir( $path ) ) {
-				throw new \Exception( self::MISSING_TMP_FOLDER_ERROR_KEY );
+				throw new \Exception( static::SESSION_DOES_NOT_EXITS_ERROR );
 			}
+
 			$this->extracted_directory_path = $path . '/';
 		}
 
-		$this->session = basename( $this->extracted_directory_path );
+		$this->session_id = basename( $this->extracted_directory_path );
 		$this->settings_referrer = ! empty( $settings['referrer'] ) ? $settings['referrer'] : 'local';
 
 		// Using isset and not empty is important since empty array is a valid option for those arrays.
@@ -72,43 +138,42 @@ class Import {
 		$this->set_default_settings();
 	}
 
-	public function register_default_runners() {
-		$this->register( new Site_Settings() );
-		$this->register( new Plugins() );
-		$this->register( new Templates() );
-		$this->register( new Taxonomies() );
-		$this->register( new Elementor_Content() );
-		$this->register( new Wp_Content() );
-	}
-
-	public function register( $runner_instance ) {
-		$this->runners[ get_class( $runner_instance ) ] = $runner_instance;
-	}
-
+	/**
+	 * Set default settings for the import.
+	 */
 	public function set_default_settings() {
 		if ( ! is_array( $this->get_settings_include() ) ) {
 			$this->settings_include( $this->get_default_settings_include() );
 		}
 
-		if ( in_array( 'templates', $this->settings_include, true ) && ! is_array( $this->get_settings_selected_override_conditions() ) ) {
+		if ( ! is_array( $this->get_settings_selected_override_conditions() ) ) {
 			$this->settings_selected_override_conditions( $this->get_default_settings_override_conditions() );
 		}
 
-		if ( in_array( 'content', $this->settings_include, true ) && ! is_array( $this->get_settings_selected_custom_post_types() ) ) {
+		if ( ! is_array( $this->get_settings_selected_custom_post_types() ) ) {
 			$this->settings_selected_custom_post_types( $this->get_default_settings_custom_post_types() );
 		}
 
-		if ( in_array( 'plugins', $this->settings_include, true ) && ! is_array( $this->get_settings_selected_plugins() ) ) {
+		if ( ! is_array( $this->get_settings_selected_plugins() ) ) {
 			$this->settings_selected_plugins( $this->get_default_settings_plugins() );
 		}
 	}
 
+	/**
+	 * Execute the import process.
+	 *
+	 * @return array The imported data output.
+	 * @throws \Exception
+	 */
 	public function run() {
+		$start_time = current_time( 'timestamp' );
+
 		if ( empty( $this->runners ) ) {
-			throw new \Exception( 'specify-runners' );
+			throw new \Exception( 'Please specify import runners.' );
 		}
 
 		$data = [
+			'session_id' => $this->session_id,
 			'include' => $this->settings_include,
 			'manifest' => $this->manifest,
 			'site_settings' => $this->site_settings,
@@ -119,11 +184,20 @@ class Import {
 
 		add_filter( 'elementor/document/save/data', [ $this, 'prevent_saving_elements_on_post_creation' ], 10, 2 );
 
+		// Set the Request's state as an Elementor upload request, in order to support unfiltered file uploads.
+		Plugin::$instance->uploads_manager->set_elementor_upload_state( true );
+
 		foreach ( $this->runners as $runner ) {
 			if ( $runner->should_import( $data ) ) {
-				$this->imported_data = $this->imported_data + $runner->import( $data, $this->imported_data );
+				$import = $runner->import( $data, $this->imported_data );
+				$this->imported_data = array_merge_recursive( $this->imported_data, $import );
 			}
 		}
+
+		$this->update_imports_option( $this->imported_data, $start_time );
+
+		// After the upload complete, set the elementor upload state back to false.
+		Plugin::$instance->uploads_manager->set_elementor_upload_state( false );
 
 		remove_filter( 'elementor/document/save/data', [ $this, 'prevent_saving_elements_on_post_creation' ], 10 );
 
@@ -142,15 +216,20 @@ class Import {
 		return $this->extracted_directory_path;
 	}
 
-	public function get_session() {
-		return $this->session;
+	public function get_session_id() {
+		return $this->session_id;
 	}
 
 	public function get_adapters() {
 		return $this->adapters;
 	}
 
-	// Get settings by key, for BC.
+	/**
+	 * Get settings by key.
+	 * Used for backward compatibility.
+	 *
+	 * @param string $key The key of the setting.
+	 */
 	public function get_settings( $key ) {
 		switch ( $key ) {
 			case 'include':
@@ -170,7 +249,7 @@ class Import {
 		}
 	}
 
-	public function settings_include( $settings_include ) {
+	public function settings_include( array $settings_include ) {
 		$this->settings_include = $settings_include;
 
 		return $this;
@@ -190,7 +269,7 @@ class Import {
 		return $this->settings_referrer;
 	}
 
-	public function settings_selected_override_conditions( $settings_selected_override_conditions ) {
+	public function settings_selected_override_conditions( array $settings_selected_override_conditions ) {
 		$this->settings_selected_override_conditions = $settings_selected_override_conditions;
 
 		return $this;
@@ -200,7 +279,7 @@ class Import {
 		return $this->settings_selected_override_conditions;
 	}
 
-	public function settings_selected_custom_post_types( $settings_selected_custom_post_types ) {
+	public function settings_selected_custom_post_types( array $settings_selected_custom_post_types ) {
 		$this->settings_selected_custom_post_types = $settings_selected_custom_post_types;
 
 		return $this;
@@ -210,7 +289,7 @@ class Import {
 		return $this->settings_selected_custom_post_types;
 	}
 
-	public function settings_selected_plugins( $settings_selected_plugins ) {
+	public function settings_selected_plugins( array $settings_selected_plugins ) {
 		$this->settings_selected_plugins = $settings_selected_plugins;
 
 		return $this;
@@ -220,7 +299,15 @@ class Import {
 		return $this->settings_selected_plugins;
 	}
 
-	public function prevent_saving_elements_on_post_creation( $data, $document ) {
+	/**
+	 * Prevent saving elements on elementor post creation.
+	 *
+	 * @param array $data
+	 * @param Document $document
+	 *
+	 * @return array
+	 */
+	public function prevent_saving_elements_on_post_creation( array $data, Document $document ) {
 		if ( isset( $data['elements'] ) ) {
 			$this->documents_elements[ $document->get_main_id() ] = $data['elements'];
 
@@ -230,16 +317,32 @@ class Import {
 		return $data;
 	}
 
+	/**
+	 * Extract the zip file.
+	 *
+	 * @param string $zip_path The path to the zip file.
+	 * @return string The extracted directory path.
+	 */
 	private function extract_zip( $zip_path ) {
 		$extraction_result = Plugin::$instance->uploads_manager->extract_and_validate_zip( $zip_path, [ 'json', 'xml' ] );
+
+		if ( is_wp_error( $extraction_result ) ) {
+			throw new \Error( static::ZIP_FILE_ERROR_KEY );
+		}
+
 		return $extraction_result['extraction_directory'];
 	}
 
+	/**
+	 * Get the manifest file from the extracted directory and adapt it if needed.
+	 *
+	 * @return string The manifest file content.
+	 */
 	private function read_manifest_json() {
 		$manifest = Utils::read_json_file( $this->extracted_directory_path . 'manifest' );
 
 		if ( ! $manifest ) {
-			throw new \Error( self::MANIFEST_ERROR_KEY );
+			throw new \Error( static::MANIFEST_ERROR_KEY );
 		}
 
 		$this->init_adapters( $manifest );
@@ -251,7 +354,12 @@ class Import {
 		return $manifest;
 	}
 
-	private function init_adapters( $manifest_data ) {
+	/**
+	 * Init the adapters and determine which ones to use.
+	 *
+	 * @param array $manifest_data The manifest file content.
+	 */
+	private function init_adapters( array $manifest_data ) {
 		$this->adapters = [];
 
 		/** @var Base_Adapter[] $adapter_types */
@@ -264,6 +372,11 @@ class Import {
 		}
 	}
 
+	/**
+	 * Get the site settings file from the extracted directory and adapt it if needed.
+	 *
+	 * @return string The site settings file content.
+	 */
 	private function read_site_settings_json() {
 		$site_settings = Utils::read_json_file( $this->extracted_directory_path . 'site-settings' );
 
@@ -274,67 +387,76 @@ class Import {
 		return $site_settings;
 	}
 
+	/**
+	 * Get all the custom post types in the kit.
+	 *
+	 * @return array Custom post types names.
+	 */
 	private function get_default_settings_custom_post_types() {
 		if ( empty( $this->manifest['wp-content'] ) ) {
 			return [];
 		}
+
 		$manifest_post_types = array_keys( $this->manifest['wp-content'] );
-		$custom_post_types = array_diff( $manifest_post_types, self::NATIVE_WP_POST_TYPES );
 
-		foreach ( $custom_post_types as $post_type ) {
-			if ( empty( $this->manifest['wp-content'][ $post_type ]['label_plural'] ) ) {
-				unset( $custom_post_types[ $post_type ] );
-			}
-		}
-
-		return $custom_post_types;
-	}
-
-	private function get_default_settings_override_conditions() {
-		$conflicts = [];
-		$conflicts = apply_filters( 'elementor/import/get_default_settings_override_conditions', $conflicts, $this->manifest );
-		return $conflicts;
-	}
-
-	private function get_default_settings_plugins() {
-		if ( empty( $this->manifest['plugins'] ) ) {
-			return [];
-		}
-
-		return $this->manifest['plugins'];
-	}
-
-	private function get_default_settings_include() {
-		$include = [ 'templates', 'plugins', 'content', 'settings' ];
-
-		if ( empty( $this->manifest['templates'] ) ) {
-			unset( $include['templates'] );
-		}
-
-		if ( empty( $this->manifest['content'] ) && empty( $this->manifest['wp-content'] ) ) {
-			unset( $include['content'] );
-		}
-
-		if ( empty( $this->manifest['site-settings'] ) ) {
-			unset( $include['settings'] );
-		}
-
-		if ( empty( $this->manifest['plugins'] ) ) {
-			unset( $include['plugins'] );
-		}
-
-		return $include;
+		return array_diff( $manifest_post_types, Utils::get_builtin_wp_post_types() );
 	}
 
 	/**
-	 * Post Import Functions
+	 * Get the default settings of elementor templates conditions to override.
+	 *
+	 * @return array
 	 */
+	private function get_default_settings_override_conditions() {
+		return apply_filters( 'elementor/import/get_default_settings_override_conditions', [], $this->manifest );
+	}
 
-	private function save_elements_of_imported_posts( $map_old_new_post_ids ) {
+	/**
+	 * Get the default settings of the plugins that should be imported.
+	 *
+	 * @return array
+	 */
+	private function get_default_settings_plugins() {
+		return ! empty( $this->manifest['plugins'] ) ? $this->manifest['plugins'] : [];
+	}
+
+	/**
+	 * Get the default settings of which content types should be imported.
+	 *
+	 * @return array
+	 */
+	private function get_default_settings_include() {
+		return [ 'templates', 'plugins', 'content', 'settings' ];
+	}
+
+	/**
+	 * Save the prevented elements on elementor post creation elements.
+	 * Handle the replacement of all the dynamic content of the elements that probably have been changed during the import.
+	 *
+	 * @param array $map_old_new_post_ids Mapped array of old and new post ids.
+	 */
+	private function save_elements_of_imported_posts( array $map_old_new_post_ids ) {
 		foreach ( $this->documents_elements as $new_id => $document_elements ) {
 			$document = Plugin::$instance->documents->get( $new_id );
 			$updated_elements = $document->on_import_replace_dynamic_content( $document_elements, $map_old_new_post_ids );
 			$document->save( [ 'elements' => $updated_elements ] );
 		}
+	}
+
+	private function update_imports_option( array $imported_data, $start_time ) {
+		$option = get_option( 'elementor_import_sessions' );
+
+		$option[ time() ] = [
+			'session_id' => $this->session_id,
+//			'kit_id' => $this->manifest['kit_id'],
+			'kit_name' => $this->manifest['name'],
+			'source' => $this->settings_referrer,
+			'user_id' => get_current_user_id(),
+			'start_timestamp' => $start_time,
+			'end_timestamp' => current_time( 'timestamp' ),
+			'runners' => isset( $imported_data['revert_data'] ) ? $imported_data['revert_data'] : [],
+		];
+
+		update_option( 'elementor_import_sessions', $option, 'no' );
 	}
 }

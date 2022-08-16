@@ -2,59 +2,65 @@
 
 namespace Elementor\Core\App\Modules\ImportExport;
 
+use Elementor\Core\Utils\Str;
 use Elementor\Modules\LandingPages\Module as Landing_Pages_Module;
+use Elementor\Modules\System_Info\Reporters\Server;
 use Elementor\TemplateLibrary\Source_Local;
 use Elementor\Utils as ElementorUtils;
 
 class Utils {
 
 	public static function read_json_file( $path ) {
-		$file_content = ElementorUtils::file_get_contents( $path . '.json', true );
+		if ( ! Str::ends_with( $path, '.json' ) ) {
+			$path .= '.json';
+		}
+
+		$file_content = ElementorUtils::file_get_contents( $path, true );
 
 		return $file_content ? json_decode( $file_content, true ) : [];
 	}
 
-	public static function map_old_new_post_ids( $imported_data ) {
-		$map_old_new_post_ids = [];
+	public static function map_old_new_post_ids( array $imported_data ) {
+		$result = [];
 
-		if ( ! is_array( $imported_data ) ) {
-			return [];
-		}
-
-		foreach ( $imported_data as $imported_post ) {
-			if ( isset( $imported_post['posts']['succeed'] ) ) {
-				$map_old_new_post_ids += $imported_post['posts']['succeed'];
-			} elseif ( isset( $imported_post['succeed'] ) ) {
-				$map_old_new_post_ids += $imported_post['succeed'];
-			} else {
-				$map_old_new_post_ids += static::map_old_new_post_ids( $imported_post );
+		if ( isset( $imported_data['content'] ) ) {
+			foreach ( $imported_data['content'] as $post_type ) {
+				$result += $post_type['succeed'];
 			}
 		}
 
-		return $map_old_new_post_ids;
-	}
-
-	public static function map_old_new_terms_ids( $imported_data ) {
-		$map_old_new_terms_ids = [];
-
-		if ( ! is_array( $imported_data ) ) {
-			return [];
+		if ( isset( $imported_data['wp-content'] ) ) {
+			foreach ( $imported_data['wp-content'] as $post_type ) {
+				$result += $post_type['succeed'];
+			}
 		}
 
-		foreach ( $imported_data as $post_type_taxonomies ) {
+		return $result;
+	}
+
+	public static function map_old_new_terms_ids( array $imported_data ) {
+		$result = [];
+
+		if ( ! isset( $imported_data['taxonomies'] ) ) {
+			return $result;
+		}
+
+		foreach ( $imported_data['taxonomies'] as $post_type_taxonomies ) {
 			foreach ( $post_type_taxonomies as $taxonomy ) {
 				foreach ( $taxonomy as $term ) {
-					$old_id = key( $term['id'] );
-					$new_id = reset( $term['id'] );
-
-					$map_old_new_terms_ids[ $old_id ] = $new_id;
+					$result[ $term['old_id'] ] = $term['new_id'];
 				}
 			}
 		}
-		return $map_old_new_terms_ids;
+
+		return $result;
 	}
 
-	public static function get_native_wp_post_types() {
+	public static function get_elementor_post_types() {
+		return [ 'post', 'page', 'e-landing-page' ];
+	}
+
+	public static function get_builtin_wp_post_types() {
 		return [ 'post', 'page', 'nav_menu_item' ];
 	}
 

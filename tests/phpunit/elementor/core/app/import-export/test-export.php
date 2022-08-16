@@ -1,13 +1,15 @@
 <?php
 namespace Elementor\Tests\Phpunit\Elementor\Core\App\ImportExport;
 
-use Elementor\Core\App\Modules\ImportExport\Content\Elementor_Content;
-use Elementor\Core\App\Modules\ImportExport\Content\Plugins;
-use Elementor\Core\App\Modules\ImportExport\Content\Site_Settings;
-use Elementor\Core\App\Modules\ImportExport\Content\Taxonomies;
-use Elementor\Core\App\Modules\ImportExport\Content\Templates;
-use Elementor\Core\App\Modules\ImportExport\Content\Wp_Content;
-use Elementor\Core\App\Modules\ImportExport\Export;
+use Elementor\Core\App\Modules\ImportExport\Runners\Elementor_Content;
+use Elementor\Core\App\Modules\ImportExport\Runners\Plugins;
+use Elementor\Core\App\Modules\ImportExport\Runners\Site_Settings;
+use Elementor\Core\App\Modules\ImportExport\Runners\Taxonomies;
+use Elementor\Core\App\Modules\ImportExport\Runners\Templates;
+use Elementor\Core\App\Modules\ImportExport\Runners\Wp_Content;
+use Elementor\Core\App\Modules\ImportExport\Processes\Export;
+use Elementor\Core\App\Modules\ImportExport\Utils as ImportExportUtils;
+use Elementor\Core\Utils\Collection;
 use Elementor\Plugin;
 use ElementorEditorTesting\Elementor_Test_Base;
 
@@ -34,22 +36,24 @@ class Test_Export extends Elementor_Test_Base {
 		$expected_manifest_base_keys = [ 'name', 'title', 'description', 'author', 'version', 'elementor_version', 'created', 'thumbnail', 'site' ];
 		$this->assert_array_have_keys( $expected_manifest_base_keys, $result['manifest'] );
 
-		$expected_manifest_registered_keys = [ 'site-settings', 'plugins', 'templates', 'taxonomies', 'content', 'wp-content', 'custom-post-type-title' ];
+		$expected_manifest_registered_keys = [ 'site-settings', 'plugins', 'taxonomies', 'content', 'wp-content', 'custom-post-type-title' ];
 		$this->assert_array_have_keys( $expected_manifest_registered_keys, $result['manifest'] );
 
 		$extracted_zip_path = Plugin::$instance->uploads_manager->extract_and_validate_zip( $result['file_name'], [ 'json', 'xml' ] )['extraction_directory'];
-		$manifest_file = $this->read_json_file( $extracted_zip_path . 'manifest' );
+		$manifest_file = ImportExportUtils::read_json_file( $extracted_zip_path . 'manifest' );
 		$this->assertEquals( $result['manifest'], $manifest_file );
 
 		// Cleanups
 		unregister_taxonomy_for_object_type( 'tests_tax', 'tests' );
 		unregister_post_type( 'tests' );
+
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $extracted_zip_path );
 	}
 
-	public function test_run__fail_when_not_registered_runners() {
+	public function test_run__fails_when_no_runners_are_registered() {
 		// Expect
 		$this->expectException( \Exception::class );
-		$this->expectExceptionMessage( 'specify-runners' );
+		$this->expectExceptionMessage( 'Please specify export runners.' );
 
 		// Arrange
 		$export = new Export();
@@ -69,22 +73,23 @@ class Test_Export extends Elementor_Test_Base {
 		// Assert
 		$this->assertCount( 2, $result['manifest']['plugins'] );
 
-		foreach ( $result['manifest']['plugins'] as $plugin) {
+		foreach ( $result['manifest']['plugins'] as $plugin ) {
 			$this->assert_array_have_keys( ['name', 'plugin', 'pluginUri', 'version'], $plugin );
 		}
 	}
 
 	public function test_run__export_site_settings() {
-		// TODO fix adding custom site settings
+		// Arrange
+		$this->act_as_admin();
+
 		$custom_colors = [
 			'_id' => '0fba91c',
-            'title' => 'Light Orange',
-            'color' => '#FAB89F',
+			'title' => 'Light Orange',
+			'color' => '#FAB89F',
 		];
 		$site_settings['custom_colors'] = $custom_colors;
-		$new_kit = Plugin::$instance->kits_manager->create_new_kit( 'a', $site_settings );
+		Plugin::$instance->kits_manager->create_new_kit( 'a', $site_settings );
 
-		// Arrange
 		$export = new Export();
 		$export->register( new Site_Settings() );
 
@@ -101,9 +106,12 @@ class Test_Export extends Elementor_Test_Base {
 
 		$kit_data = $kit->get_export_data();
 		$extracted_zip_path = Plugin::$instance->uploads_manager->extract_and_validate_zip( $result['file_name'], [ 'json', 'xml' ] )['extraction_directory'];
-		$site_settings_file = $this->read_json_file( $extracted_zip_path . 'site-settings' );
+		$site_settings_file = ImportExportUtils::read_json_file( $extracted_zip_path . 'site-settings' );
 
 		$this->assertEquals( $kit_data, $site_settings_file );
+
+		// Cleanups
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $extracted_zip_path );
 	}
 
 	public function test_run__export_taxonomies() {
@@ -135,7 +143,7 @@ class Test_Export extends Elementor_Test_Base {
 
 		foreach ( $result['manifest']['taxonomies'] as $post_type ) {
 			foreach ( $post_type as $taxonomy ) {
-				$terms = $this->read_json_file( $extracted_zip_path . 'taxonomies/' . $taxonomy );
+				$terms = ImportExportUtils::read_json_file( $extracted_zip_path . 'taxonomies/' . $taxonomy );
 
 				$expected_terms = get_terms( [
 					'taxonomy' => $taxonomy,
@@ -155,9 +163,11 @@ class Test_Export extends Elementor_Test_Base {
 			}
 		}
 
-		// Cleanup
+		// Cleanups
 		unregister_post_type( 'tests' );
 		unregister_taxonomy( 'tests_tax' );
+
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $extracted_zip_path );
 	}
 
 	public function test_run__export_templates() {
@@ -169,28 +179,31 @@ class Test_Export extends Elementor_Test_Base {
 		$result = $export->run();
 
 		// Assert
-		$this->assertEmpty( $result['manifest']['templates'] );
+		$this->assertFalse( isset( $result['manifest']['templates'] ) );
 
 		$extracted_zip_path = Plugin::$instance->uploads_manager->extract_and_validate_zip( $result['file_name'], [ 'json', 'xml' ] )['extraction_directory'];
+
 		$this->assertFalse( is_dir( $extracted_zip_path . 'templates' ) );
+
+		// Cleanups
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $extracted_zip_path );
 	}
 
 	public function test_run__export_elementor_content() {
-		$tmp_documents = [];
-
-		$tmp_documents[] = $this->factory()->documents->publish_and_get( [ 'post_type' => 'page', ] );
-		$tmp_documents[] = $this->factory()->documents->publish_and_get( [ 'post_type' => 'e-landing-page', ] );
-		$tmp_documents[] = $this->factory()->documents->publish_and_get();
-
-		$documents = [];
-		foreach ( $tmp_documents as $document ) {
-			$documents[ $document->get_id() ] = $document;
-		}
-
-		// Adding draft document also just to make sure that he is not getting exported.
-		$this->factory()->documents->create_and_get();
-
 		// Arrange
+		$documents = ( new Collection( [
+			$this->factory()->documents->publish_and_get( [ 'post_type' => 'page', ] ),
+			$this->factory()->documents->publish_and_get( [ 'post_type' => 'e-landing-page', ] ),
+			$this->factory()->documents->publish_and_get(),
+		] ) )
+			->map_with_keys( function( $document ) {
+				return [ $document->get_main_id() => $document ];
+			} )
+			->all();
+
+		// Add a draft document to make sure that it's not getting exported.
+		$this->factory()->documents->create();
+
 		$export = new Export();
 		$export->register( new Elementor_Content() );
 
@@ -232,7 +245,7 @@ class Test_Export extends Elementor_Test_Base {
 		$post_term = $this->factory()->term->create_and_get( [ 'taxonomy' => 'custom_post_tax' ] );
 		$elementor_post = $this->factory()->documents->publish_and_get();
 
-		wp_set_post_terms( $elementor_post->get_id(), [ $post_term->term_id ] , 'custom_post_tax');
+		wp_set_post_terms( $elementor_post->get_id(), [ $post_term->term_id ] , 'custom_post_tax' );
 
 		$export = new Export();
 		$export->register( new Taxonomies() );
@@ -241,7 +254,6 @@ class Test_Export extends Elementor_Test_Base {
 		// Act
 		$result = $export->run();
 
-
 		// Assert
 		$found_the_created_term = false;
 		foreach ( $result['manifest']['content']['post'][ $elementor_post->get_id() ]['terms'] as $term ) {
@@ -249,6 +261,7 @@ class Test_Export extends Elementor_Test_Base {
 				$found_the_created_term = true;
 				$this->assertEquals( $post_term->taxonomy, $term['taxonomy'] );
 				$this->assertEquals( $post_term->slug, $term['slug'] );
+				break;
 			}
 		}
 		$this->assertTrue( $found_the_created_term );
@@ -261,12 +274,6 @@ class Test_Export extends Elementor_Test_Base {
 			unset( $element[ $unwanted_key ] );
 			$this->recursive_unset( $element['elements'], $unwanted_key );
 		}
-	}
-
-	private function read_json_file( $path ) {
-		$file_content = \Elementor\Utils::file_get_contents( $path . '.json', true );
-
-		return $file_content ? json_decode( $file_content, true ) : [];
 	}
 
 	private function assert_valid_wp_content( $result ) {
@@ -292,6 +299,9 @@ class Test_Export extends Elementor_Test_Base {
 
 			$this->assertCount( count( $query->posts ), $posts_ids ) ;
 		}
+
+		// Cleanups
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $extracted_zip_path );
 	}
 
 	private function register_post_type( $key, $plural_label ) {
@@ -308,27 +318,30 @@ class Test_Export extends Elementor_Test_Base {
 		$extracted_zip_path = Plugin::$instance->uploads_manager->extract_and_validate_zip( $result['file_name'], [ 'json', 'xml' ] )['extraction_directory'];
 
 		foreach ( $result['manifest']['content'] as $post_type_key => $post_type_posts ) {
-			foreach ($result['manifest']['content'][ $post_type_key ] as $post_id => $post_settings) {
-				$expected_document = $documents[$post_id];
+			foreach ($result['manifest']['content'][ $post_type_key ] as $post_id => $post_settings ) {
+				$expected_document = $documents[ $post_id ];
 				$expected_post = $expected_document->get_post();
 
-				$this->assertEquals($expected_post->post_title, $post_settings['title']);
-				$this->assertEquals($expected_post->post_excerpt, $post_settings['excerpt']);
-				$this->assertEquals($expected_document->get_name(), $post_settings['doc_type']);
-				$this->assertEquals(get_the_post_thumbnail_url($expected_post), $post_settings['thumbnail']);
-				$this->assertEquals(get_permalink($expected_post), $post_settings['url']);
-				$this->assertTrue(isset($post_settings['terms']));
+				$this->assertEquals( $expected_post->post_title, $post_settings['title'] );
+				$this->assertEquals( $expected_post->post_excerpt, $post_settings['excerpt'] );
+				$this->assertEquals( $expected_document->get_name(), $post_settings['doc_type'] );
+				$this->assertEquals( get_the_post_thumbnail_url($expected_post), $post_settings['thumbnail'] );
+				$this->assertEquals( get_permalink($expected_post), $post_settings['url'] );
+				$this->assertTrue( isset($post_settings['terms']) );
 
 				// Unsetting the IDs since the export function change them.
-				$post_file = $this->read_json_file($extracted_zip_path . 'content/' . $post_type_key . '/' . $post_id);
+				$post_file = ImportExportUtils::read_json_file( $extracted_zip_path . 'content/' . $post_type_key . '/' . $post_id );
 				$post_content = $post_file['content'];
-				$this->recursive_unset($post_content, 'id');
+				$this->recursive_unset( $post_content, 'id' );
 
 				$expected_post_content = $expected_document->get_json_meta('_elementor_data');
-				$this->recursive_unset($expected_post_content, 'id');
+				$this->recursive_unset( $expected_post_content, 'id');
 
-				$this->assertEquals($expected_post_content, $post_content);
+				$this->assertEquals( $expected_post_content, $post_content );
 			}
 		}
+
+		// Cleanups
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $extracted_zip_path );
 	}
 }

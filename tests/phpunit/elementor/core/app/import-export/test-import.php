@@ -1,13 +1,13 @@
 <?php
 namespace Elementor\Tests\Phpunit\Elementor\Core\App\ImportExport;
 
-use Elementor\Core\App\Modules\ImportExport\Content\Elementor_Content;
-use Elementor\Core\App\Modules\ImportExport\Content\Plugins;
-use Elementor\Core\App\Modules\ImportExport\Content\Site_Settings;
-use Elementor\Core\App\Modules\ImportExport\Content\Taxonomies;
-use Elementor\Core\App\Modules\ImportExport\Content\Templates;
-use Elementor\Core\App\Modules\ImportExport\Content\Wp_Content;
-use Elementor\Core\App\Modules\ImportExport\Import;
+use Elementor\Core\App\Modules\ImportExport\Runners\Elementor_Content;
+use Elementor\Core\App\Modules\ImportExport\Runners\Plugins;
+use Elementor\Core\App\Modules\ImportExport\Runners\Site_Settings;
+use Elementor\Core\App\Modules\ImportExport\Runners\Taxonomies;
+use Elementor\Core\App\Modules\ImportExport\Runners\Templates;
+use Elementor\Core\App\Modules\ImportExport\Runners\Wp_Content;
+use Elementor\Core\App\Modules\ImportExport\Processes\Import;
 use Elementor\Core\App\Modules\ImportExport\Utils as ImportExportUtils;
 use Elementor\Core\Settings\Page\Manager as PageManager;
 use Elementor\Core\Utils\Plugins_Manager;
@@ -31,17 +31,21 @@ class Test_Import extends Elementor_Test_Base {
 
 		$plugins_manager_mock->expects( $this->once() )
 			->method( 'install' )
-			->willReturn( [ 'succeeded' => [
-				'elementor/elementor.php',
-				'elementor-pro/elementor-pro.php',
-			] ] );
+			->willReturn( [
+				'succeeded' => [
+					'elementor/elementor.php',
+					'elementor-pro/elementor-pro.php',
+				]
+			] );
 
 		$plugins_manager_mock->expects( $this->once() )
 			->method( 'activate' )
-			->willReturn( [ 'succeeded' => [
-				'elementor/elementor.php',
-				'elementor-pro/elementor-pro.php',
-			] ] );
+			->willReturn( [
+				'succeeded' => [
+					'elementor/elementor.php',
+					'elementor-pro/elementor-pro.php',
+				]
+			] );
 
 		$zip_path = __DIR__ . '/mock/sample-kit.zip';
 		$extraction_result = Plugin::$instance->uploads_manager->extract_and_validate_zip( $zip_path, [ 'json', 'xml' ] );
@@ -73,6 +77,8 @@ class Test_Import extends Elementor_Test_Base {
 		$this->assert_valid_terms_with_elementor_content( $result, $manifest );
 		$this->assert_valid_terms_with_wp_content( $result );
 
+		get_option( '' );
+
 		// Cleanups
 		unregister_taxonomy_for_object_type( 'tests_tax', 'tests' );
 		unregister_post_type( 'tests' );
@@ -82,7 +88,7 @@ class Test_Import extends Elementor_Test_Base {
 	public function test_run__fail_when_not_registered_runners() {
 		// Expect
 		$this->expectException( \Exception::class );
-		$this->expectExceptionMessage( 'specify-runners' );
+		$this->expectExceptionMessage( 'Please specify import runners.' );
 
 		// Arrange
 		$import = new Import( __DIR__ . '/mock/sample-kit.zip', [] );
@@ -99,17 +105,21 @@ class Test_Import extends Elementor_Test_Base {
 
 		$plugins_manager_mock->expects( $this->once() )
 			->method( 'install' )
-			->willReturn( [ 'succeeded' => [
-				'elementor/elementor.php',
-				'elementor-pro/elementor-pro.php',
-			] ] );
+			->willReturn( [
+				'succeeded' => [
+					'elementor/elementor.php',
+					'elementor-pro/elementor-pro.php',
+				]
+			] );
 
 		$plugins_manager_mock->expects( $this->once() )
 			->method( 'activate' )
-			->willReturn( [ 'succeeded' => [
-				'elementor/elementor.php',
-				'elementor-pro/elementor-pro.php',
-			] ] );
+			->willReturn( [
+				'succeeded' => [
+					'elementor/elementor.php',
+					'elementor-pro/elementor-pro.php',
+				]
+			] );
 
 		$import_settings = [
 			'include' => [ 'plugins' ],
@@ -123,7 +133,7 @@ class Test_Import extends Elementor_Test_Base {
 
 		// Assert
 		$this->assertCount( 1, $result );
-		$this->assertEquals( [ 'Elementor', 'Elementor Pro' ], $result['plugins']);
+		$this->assertEquals( [ 'Elementor', 'Elementor Pro' ], $result['plugins'] );
 	}
 
 	public function test_run__import_plugins_selected_plugin() {
@@ -186,8 +196,9 @@ class Test_Import extends Elementor_Test_Base {
 		$result = $import->run();
 
 		// Assert
-		$this->assertCount( 1, $result );
+		$this->assertCount( 2, $result );
 		$this->assertTrue( $result['site-settings'] );
+		$this->assertTrue( is_array( $result['revert_data']['site-settings'] ) );
 
 		$new_active_kit = Plugin::$instance->kits_manager->get_active_kit();
 		$this->assertEquals( 'Imported Kit', $new_active_kit->get_post()->post_title );
@@ -197,7 +208,7 @@ class Test_Import extends Elementor_Test_Base {
 		$this->assertEquals( $expected_custom_typography, $new_settings['custom_typography'] );
 	}
 
-	public function test_run__import_templates() {
+	public function test_run__import_templates_will_be_empty_without_the_pro() {
 		// Arrange
 		$import_settings = [
 			'include' => [ 'templates' ],
@@ -209,11 +220,7 @@ class Test_Import extends Elementor_Test_Base {
 		$result = $import->run();
 
 		// Assert
-		$this->assertCount( 1, $result );
-
-		$expected_result_failed_msg = 'Type header does not exist.';
-		$this->assertNotEmpty( $result['templates']['failed'] );
-		$this->assertEquals( $expected_result_failed_msg, reset( $result['templates']['failed'] ) );
+		$this->assertEmpty( $result );
 	}
 
 	public function test_run__import_taxonomies_without_register_custom_taxonomies() {
@@ -228,8 +235,9 @@ class Test_Import extends Elementor_Test_Base {
 		$result = $import->run();
 
 		// Assert
-		$this->assertCount( 1, $result );
+		$this->assertCount( 2, $result );
 		$this->assert_valid_taxonomies( $result );
+		$this->assertTrue( is_array( $result['revert_data']['taxonomies'] ) );
 	}
 
 	public function test_run__import_taxonomies_with_register_custom_taxonomies() {
@@ -247,8 +255,9 @@ class Test_Import extends Elementor_Test_Base {
 		$result = $import->run();
 
 		// Assert
-		$this->assertCount( 1, $result );
+		$this->assertCount( 2, $result );
 		$this->assert_valid_taxonomies( $result );
+		$this->assertTrue( is_array( $result['revert_data']['taxonomies'] ) );
 
 		// Cleanups
 		unregister_taxonomy_for_object_type( 'tests_tax', 'tests' );
@@ -273,7 +282,10 @@ class Test_Import extends Elementor_Test_Base {
 		$result = $import->run();
 
 		// Assert
-		$this->assertCount( 1, $result );
+		$this->assertCount( 2, $result );
+
+		$this->assertTrue( is_array( $result['revert_data']['elementor-content'] ) );
+
 		$this->assertCount( 1, $result['content']['post']['succeed'] );
 		$this->assertCount( 1, $result['content']['page']['succeed'] );
 
@@ -283,9 +295,6 @@ class Test_Import extends Elementor_Test_Base {
 	public function test_run__import_wp_content_with_one_cpt_register_and_one_not() {
 		// Arrange
 		register_post_type( 'tests' );
-		if ( post_type_exists( 'sectests' ) ) {
-			unregister_post_type( 'sectests' );
-		}
 
 		$import_settings = [
 			'include' => [ 'content' ],
@@ -297,12 +306,15 @@ class Test_Import extends Elementor_Test_Base {
 		// Act
 		$result = $import->run();
 
-		$this->assertCount( 1, $result );
+		$this->assertCount( 2, $result );
+
+		$this->assertTrue( is_array( $result['revert_data']['wp-content'] ) );
+
 		$this->assertCount( 1, $result['wp-content']['post']['succeed'] );
 		$this->assertCount( 1, $result['wp-content']['page']['succeed'] );
 		$this->assertCount( 1, $result['wp-content']['tests']['succeed'] );
 		$this->assertCount( 4, $result['wp-content']['nav_menu_item']['succeed'] );
-		$this->assertEmpty( $result['wp-content']['sectests'] );
+		$this->assertFalse( isset( $result['wp-content']['sectests'] ) );
 
 		unregister_post_type( 'tests' );
 	}
@@ -338,6 +350,19 @@ class Test_Import extends Elementor_Test_Base {
 		unregister_post_type( 'sectests' );
 	}
 
+	public function test_run__envato_kit() {
+		// Arrange
+		$import = new Import( __DIR__ . '/mock/envato-kit.zip', [] );
+		$import->register_default_runners();
+
+		// Act
+		$result = $import->run();
+
+		// Assert
+		$this->assertTrue( isset( $result['site-settings'] ) );
+		$this->assertFalse( isset( $result['templates'] ) );
+	}
+
 	// Test the set default function. In this test we are also testing the import process by session ID.
 	public function test_set_default__import_by_session() {
 		// Arrange
@@ -369,19 +394,18 @@ class Test_Import extends Elementor_Test_Base {
 		$this->assertEquals( $expected_settings_selected_plugins, $settings_selected_plugins );
 	}
 
-	public function test_constructor__import_by_not_existed_session() {
+	public function test_construct__importing_a_not_existing_session_throws_an_error() {
 		// Arrange
 		$elementor_tmp_directory = Plugin::$instance->uploads_manager->get_temp_dir();
 
 		// Expect
-		$this->expectException( \Exception::class );
-		$this->expectExceptionMessage( 'missing-tmp-folder-error' );
+		$this->expectExceptionMessage( 'session-does-not-exits-error' );
 
 		// Act
-		$import = new Import( $elementor_tmp_directory . 'session-that-not-exits', [] );
+		$import = new Import( $elementor_tmp_directory . 'session-not-exits', [] );
 	}
 
-	// Test if the kit-library adaptor is running and performing correctly.
+	// Test if the kit-library adapter is running and performing correctly.
 	public function test_get_manifest__kit_library() {
 		$import_settings = [
 			'referrer' => 'kit-library',
@@ -394,7 +418,6 @@ class Test_Import extends Elementor_Test_Base {
 			$this->assertFalse( $page['thumbnail'] );
 		}
 
-
 		foreach ( $manifest['templates'] as $template ) {
 			$this->assertFalse( $template['thumbnail'] );
 		}
@@ -406,8 +429,8 @@ class Test_Import extends Elementor_Test_Base {
 		foreach ( $result['taxonomies'] as $post_type_taxonomies ) {
 			foreach ( $post_type_taxonomies as $taxonomy_key => $imported_terms ) {
 				foreach ( $imported_terms as $imported_term ) {
-					$imported_term_id = reset( $imported_term['id'] );
-					$imported_term_slug = reset( $imported_term['slug'] );
+					$imported_term_id = $imported_term['new_id'];
+					$imported_term_slug = $imported_term['new_slug'];
 
 					$term = get_term( $imported_term_id );
 					$this->assertTrue( $term->taxonomy === $taxonomy_key );
@@ -427,27 +450,30 @@ class Test_Import extends Elementor_Test_Base {
 	// Assertions for elementor content by testing if the post containing the "JSON" content.
 	// The "JSON" is located in the content folder inside the kit.
 	private function assert_valid_elementor_content( $result, $manifest, $zip_path) {
-		$import_process_tmp_dir = Plugin::instance()->uploads_manager->extract_and_validate_zip( $zip_path )['extraction_directory'];
+		$import_process_tmp_dir = Plugin::$instance->uploads_manager->extract_and_validate_zip( $zip_path )['extraction_directory'];
 		
 		foreach ( $manifest['content'] as $elementor_post_type => $elementor_posts ) {
-			foreach ($elementor_posts as $post_id => $post_settings) {
-				$expected_post_data = ImportExportUtils::read_json_file($import_process_tmp_dir . '/content/' . $elementor_post_type . '/' . $post_id);
+			foreach ( $elementor_posts as $post_id => $post_settings ) {
+				$expected_post_data = ImportExportUtils::read_json_file( $import_process_tmp_dir . '/content/' . $elementor_post_type . '/' . $post_id );
 				$expected_post_content = $expected_post_data['content'];
 
-				$imported_post_id = $result['content'][$elementor_post_type]['succeed'][$post_id];
-				$new_post = Plugin::$instance->documents->get($imported_post_id, false);
+				$imported_post_id = $result['content'][ $elementor_post_type ]['succeed'][ $post_id ];
+				$new_post = Plugin::$instance->documents->get( $imported_post_id, false );
 				$post_content = $new_post->get_json_meta('_elementor_data');
 
-				$this->recursive_unset($post_content, 'isInner');
-				$this->recursive_unset($expected_post_content, 'isInner');
+				$this->recursive_unset( $post_content, 'isInner' );
+				$this->recursive_unset( $expected_post_content, 'isInner' );
 
-				$this->assertEquals($expected_post_content, $post_content);
+				$this->assertEquals( $expected_post_content, $post_content );
 			}
 		}
+
+		// Cleanup
+		Plugin::$instance->uploads_manager->remove_file_or_dir( $import_process_tmp_dir );
 	}
 
 	// Assertions for imported taxonomies and imported Elementor content by testing the terms of every Elementor post.
-	private function assert_valid_terms_with_elementor_content( $result, $manifest) {
+	private function assert_valid_terms_with_elementor_content( $result, $manifest ) {
 		foreach ( $manifest['content'] as $elementor_post_type => $elementor_posts ) {
 			foreach ( $elementor_posts as $post_id => $post_settings ) {
 				$expected_post_terms = $manifest['content'][ $elementor_post_type ][ $post_id ]['terms'];
@@ -465,7 +491,7 @@ class Test_Import extends Elementor_Test_Base {
 	private function assert_valid_terms_with_wp_content( $result ) {
 		foreach ( $result['wp-content'] as $wp_post_type => $wp_posts ) {
 			foreach ( $wp_posts['succeed'] as $new_post_id ) {
-				if ( empty( $result['taxonomies'][ $wp_post_type ] ) ) {
+				if ( ! isset( $result['taxonomies'][ $wp_post_type ] ) ) {
 					continue;
 				}
 

@@ -45,6 +45,7 @@ class Wp_Cli extends \WP_CLI_Command {
 			if ( ! in_array( $key, static::AVAILABLE_SETTINGS, true ) ) {
 				continue;
 			}
+
 			$export_settings[ $key ] = explode( ',', $value );
 		}
 
@@ -110,23 +111,29 @@ class Wp_Cli extends \WP_CLI_Command {
 		$url = null;
 		$file_path = $args[0];
 		$import_settings = [];
+		$import_settings['referrer'] = Module::REFERRER_LOCAL;
 
-		if ( 'library' === $assoc_args['sourceType'] ) {
-			$url = $this->get_url_from_library( $file_path );
-			$zip_path = $this->create_temp_file_from_url( $url );
-			$import_settings['referrer'] = 'kit-library';
-		} elseif ( 'remote' === $assoc_args['sourceType'] ) {
-			$url = $file_path;
-			$zip_path = $this->create_temp_file_from_url( $url );
-			$import_settings['referrer'] = 'local';
-		} elseif ( 'local' === $assoc_args['sourceType'] ) {
-			$zip_path = $file_path;
-		} else {
-			\WP_CLI::error( 'Unknown source type.' );
+		switch ( $assoc_args['sourceType'] ) {
+			case 'library':
+				$url = $this->get_url_from_library( $file_path );
+				$zip_path = $this->create_temp_file_from_url( $url );
+				$import_settings['referrer'] = Module::REFERRER_KIT_LIBRARY;
+				break;
+
+			case 'remote':
+				$zip_path = $this->create_temp_file_from_url( $file_path );
+				break;
+
+			case 'local':
+				$zip_path = $file_path;
+				break;
+
+			default:
+				\WP_CLI::error( 'Unknown source type.' );
+				break;
 		}
 
 		if ( 'enable' === $assoc_args['unfilteredFilesUpload'] ) {
-			Plugin::$instance->uploads_manager->set_elementor_upload_state( true );
 			Plugin::$instance->uploads_manager->enable_unfiltered_files_upload();
 		}
 
@@ -134,12 +141,14 @@ class Wp_Cli extends \WP_CLI_Command {
 			if ( ! in_array( $key, static::AVAILABLE_SETTINGS, true ) ) {
 				continue;
 			}
+
 			$import_settings[ $key ] = explode( ',', $value );
 		}
 
 		try {
 			\WP_CLI::line( 'Importing data...' );
 
+			// Running the import process through the import-export module so the import property in the module will be available to use.
 			$import_export_module = Plugin::$instance->app->get_component( 'import-export' );
 
 			$import = $import_export_module->import_kit( $zip_path, $import_settings );
@@ -206,7 +215,15 @@ class Wp_Cli extends \WP_CLI_Command {
 			\WP_CLI::error( "Download file url: {$response['response']['message']}" );
 		}
 
-		return Plugin::$instance->uploads_manager->create_temp_file( $response['body'], 'kit.zip' );
+		// Set the Request's state as an Elementor upload request, in order to support unfiltered file uploads.
+		Plugin::$instance->uploads_manager->set_elementor_upload_state( true );
+
+		$file = Plugin::$instance->uploads_manager->create_temp_file( $response['body'], 'kit.zip' );
+
+		// After the upload complete, set the elementor upload state back to false.
+		Plugin::$instance->uploads_manager->set_elementor_upload_state( false );
+
+		return $file;
 	}
 
 	/**
@@ -217,39 +234,5 @@ class Wp_Cli extends \WP_CLI_Command {
 	 * @param array $plugins
 	 * @return string
 	 */
-	private function import_plugins( $plugins ) {
-		$plugins_collection = ( new Collection( $plugins ) )
-			->map( function ( $item ) {
-				if ( ! $this->ends_with( $item['plugin'], '.php' ) ) {
-					$item['plugin'] .= '.php';
-				}
-				return $item;
-			} );
 
-		$slugs = $plugins_collection
-			->map( function ( $item ) {
-				return $item['plugin'];
-			} )
-			->all();
-
-		$plugins_manager = new Plugins_Manager();
-
-		$install = $plugins_manager->install( $slugs );
-		$activate = $plugins_manager->activate( $install['succeeded'] );
-
-		$names = $plugins_collection
-			->filter( function ( $item ) use ( $activate ) {
-				return in_array( $item['plugin'], $activate['succeeded'], true );
-			} )
-			->map( function ( $item ) {
-				return $item['name'];
-			} )
-			->implode( ', ' );
-
-		return $names;
-	}
-
-	private function ends_with( $haystack, $needle ) {
-		return substr( $haystack, -strlen( $needle ) ) === $needle;
-	}
 }
