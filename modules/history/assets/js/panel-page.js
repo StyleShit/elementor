@@ -1,4 +1,4 @@
-var TabHistoryView = require( './history/panel-tab' );
+import TabHistoryView from './history/panel-tab';
 
 import TabRevisionsLoadingView from './revisions/panel/loading';
 import TabRevisionsView from './revisions/panel/tab';

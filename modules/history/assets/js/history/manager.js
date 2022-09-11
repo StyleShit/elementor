@@ -10,6 +10,8 @@ export default class HistoryManager {
 
 	items = new Backbone.Collection( [], { model: ItemModel } );
 
+	events = {};
+
 	active = true;
 
 	translations = {
@@ -34,6 +36,13 @@ export default class HistoryManager {
 
 		this.currentItem = new Backbone.Model( {
 			id: 0,
+		} );
+
+		// Listen to collection changes and trigger the registered callbacks.
+		this.items.on( 'update', ( newItems ) => {
+			this.events.update?.forEach( ( callback ) => {
+				callback( newItems );
+			} );
 		} );
 	}
 
@@ -147,7 +156,8 @@ export default class HistoryManager {
 
 		this.items.add( currentItem, { at: 0 } );
 
-		this.updateCurrentItem( currentItem );
+		this.triggerUpdate();
+		this.currentItem = currentItem;
 
 		return id;
 	}
@@ -202,7 +212,8 @@ export default class HistoryManager {
 			status: item.get( 'id' ) !== this.document.editor.lastSaveHistoryId,
 		} );
 
-		this.updateCurrentItem( item );
+		this.triggerUpdate();
+		this.currentItem = item;
 
 		if ( viewToScroll && ! elementor.helpers.isInViewport( viewToScroll.$el[ 0 ], elementor.$previewContents.find( 'html' )[ 0 ] ) ) {
 			elementor.helpers.scrollToView( viewToScroll.$el );
@@ -247,16 +258,23 @@ export default class HistoryManager {
 		}
 	}
 
-	updateCurrentItem( item ) {
-		// Save last selected item.
-		this.currentItem = item;
+	on( event, callback ) {
+		if ( ! this.events[ event ] ) {
+			this.events[ event ] = [];
+		}
 
-		this.updatePanelPageCurrentItem();
+		this.events[ event ].push( callback );
 	}
 
-	updatePanelPageCurrentItem() {
-		if ( $e.routes.is( 'panel/history/actions' ) ) {
-			elementor.getPanelView().getCurrentPageView().getCurrentTab().updateCurrentItem();
+	off( event, callback ) {
+		if ( ! this.events[ event ] ) {
+			return;
 		}
+
+		this.events[ event ] = this.events[ event ].filter( ( c ) => c !== callback );
+	}
+
+	triggerUpdate() {
+		this.items.trigger( 'update', this.items );
 	}
 }
