@@ -2,6 +2,7 @@
 	"name": "@elementor/top-bar",
 	"dependencies": {
 		"@elementor/editor": "*",
+		"@elementor/object-observer": "*",
 		"@elementor/ui": "*"
 	},
 	"peerDependencies": {

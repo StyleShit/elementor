@@ -2,6 +2,7 @@ import React from 'react';
 import { AppBar, Grid, Box, IconButton, styled } from '@elementor/ui';
 import ElementorIcon from './icons/elementor-icon';
 import PlusIcon from './icons/plus-icon';
+import { useDocuments } from '../hooks/use-documents';
 
 const AppBarAction = styled( IconButton )( ( { theme } ) => ( {
 	borderRadius: '8px',
@@ -12,6 +13,12 @@ const AppBarAction = styled( IconButton )( ( { theme } ) => ( {
 } ) );
 
 export const TopBar = () => {
+	const currentDocument = useDocuments();
+
+	// console.log( { ...currentDocument.editor } );
+
+	console.log( '@@@ TopBar render' );
+
 	return (
 		<AppBar position="sticky" sx={ { background: '#000', height: '48px' } }>
 			<Grid container direction="row">

@@ -18,9 +18,14 @@ class Editor_V2_Config_Provider implements Config_Provider_Interface {
 					'deps' => [ 'react' ],
 				],
 				[
+					'handle' => 'elementor-packages-object-observer',
+					'src' => '{{ASSETS_URL}}/js/packages/object-observer{{MIN_SUFFIX}}.js',
+					'deps' => [],
+				],
+				[
 					'handle' => 'elementor-packages-top-bar',
 					'src' => '{{ASSETS_URL}}/js/packages/top-bar{{MIN_SUFFIX}}.js',
-					'deps' => [ 'react', 'elementor-packages-editor', 'elementor-packages-ui' ],
+					'deps' => [ 'react', 'elementor-packages-editor', 'elementor-packages-ui', 'elementor-packages-object-observer' ],
 				],
 				[
 					'handle' => 'elementor-packages-editor',
