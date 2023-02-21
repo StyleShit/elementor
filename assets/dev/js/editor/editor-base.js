@@ -648,6 +648,12 @@ export default class EditorBase extends Marionette.Application {
 			.trigger( 'resize' );
 	}
 
+	broadcastPreviewScale() {
+		this.channels.responsivePreview
+			.reply( 'scale', this.getPreviewScale() )
+			.trigger( 'scale' );
+	}
+
 	getCurrentDeviceConstrains() {
 		const currentBreakpoint = elementor.channels.deviceMode.request( 'currentMode' ),
 			{ activeBreakpoints } = elementorFrontend.config.responsive,
@@ -911,6 +917,56 @@ export default class EditorBase extends Marionette.Application {
 
 		style.setProperty( '--e-editor-preview-width', size.width + 'px' );
 		style.setProperty( '--e-editor-preview-height', size.height + 'px' );
+
+		this.autoScalePreview();
+	}
+
+	autoScalePreview() {
+		const resizeHandleWidth = 40;
+
+		const availablePreviewWidth = this.$previewWrapper.width();
+		const breakpointWidth = this.getPreviewSize().width;
+
+		const isFullScreen = breakpointWidth === availablePreviewWidth;
+
+		if ( isFullScreen ) {
+			this.setPreviewScale( 1 );
+
+			return;
+		}
+
+		const expectedWidth = breakpointWidth + ( resizeHandleWidth * 2 );
+		const hasEnoughSpace = expectedWidth <= availablePreviewWidth;
+
+		if ( hasEnoughSpace ) {
+			this.setPreviewScale( 1 );
+		} else {
+			this.setPreviewScale( availablePreviewWidth / expectedWidth );
+		}
+	}
+
+	getPreviewSize() {
+		const style = getComputedStyle( this.$preview[ 0 ] );
+
+		const width = style.getPropertyValue( '--e-editor-preview-width' );
+		const height = style.getPropertyValue( '--e-editor-preview-height' );
+
+		return {
+			height: parseInt( height ) || this.$previewWrapper.height(),
+			width: parseInt( width ) || this.$previewWrapper.width(),
+		};
+	}
+
+	setPreviewScale( scale ) {
+		this.$previewWrapper.css( '--e-preview-scale', scale );
+
+		this.broadcastPreviewScale();
+	}
+
+	getPreviewScale() {
+		const style = getComputedStyle( this.$previewWrapper[ 0 ] );
+
+		return parseFloat( style.getPropertyValue( '--e-preview-scale' ) || 1 );
 	}
 
 	enterPreviewMode( hidePanel ) {
@@ -1120,7 +1176,7 @@ export default class EditorBase extends Marionette.Application {
 
 		this.listenTo( this.channels.dataEditMode, 'switch', this.onEditModeSwitched );
 
-		this.listenTo( elementor.channels.deviceMode, 'change', this.updatePreviewResizeOptions );
+		this.listenTo( elementor.channels.deviceMode, 'change', this.onDeviceModeChange );
 
 		this.initClearPageDialog();
 
@@ -1214,6 +1270,12 @@ export default class EditorBase extends Marionette.Application {
 		} else {
 			this.enterPreviewMode( 'preview' === activeMode );
 		}
+	}
+
+	onDeviceModeChange() {
+		this.updatePreviewResizeOptions();
+
+		this.autoScalePreview();
 	}
 
 	onEnvNotCompatible() {
