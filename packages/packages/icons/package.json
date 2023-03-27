@@ -13,5 +13,8 @@
 	},
 	"peerDependencies": {
 		"react": "17.x"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
 	}
 }

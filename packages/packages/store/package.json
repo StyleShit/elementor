@@ -14,5 +14,8 @@
 	"dependencies": {
 		"@reduxjs/toolkit": "^1.9.1",
 		"react-redux": "^8.0.5"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
 	}
 }
