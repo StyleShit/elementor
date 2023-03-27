@@ -1,6 +1,6 @@
 {
 	"name": "@elementor/help",
-	"version": "0.0.0",
+	"version": "0.0.1-alpha.0",
 	"private": true,
 	"main": "dist/index.js",
 	"module": "dist/index.mjs",
@@ -10,9 +10,9 @@
 		"dev": "tsup src/index.ts --format esm"
 	},
 	"dependencies": {
-		"@elementor/icons": "*",
-		"@elementor/top-bar": "*",
-		"@elementor/v1-adapters": "*",
+		"@elementor/icons": "^0.0.1-alpha.0",
+		"@elementor/top-bar": "^0.0.1-alpha.0",
+		"@elementor/v1-adapters": "^0.0.1-alpha.0",
 		"@wordpress/i18n": "*"
 	},
 	"peerDependencies": {

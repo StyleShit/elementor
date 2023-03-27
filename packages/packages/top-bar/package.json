@@ -1,6 +1,6 @@
 {
 	"name": "@elementor/top-bar",
-	"version": "0.0.0",
+	"version": "0.0.1-alpha.0",
 	"main": "dist/index.js",
 	"module": "dist/index.mjs",
 	"types": "dist/index.d.ts",
@@ -9,11 +9,11 @@
 		"dev": "tsup src/index.ts --format esm"
 	},
 	"dependencies": {
-		"@elementor/editor": "*",
-		"@elementor/icons": "*",
-		"@elementor/locations": "*",
+		"@elementor/editor": "^0.0.1-alpha.0",
+		"@elementor/icons": "^0.0.1-alpha.0",
+		"@elementor/locations": "^0.0.1-alpha.0",
 		"@elementor/ui": "*",
-		"@elementor/v1-adapters": "*",
+		"@elementor/v1-adapters": "^0.0.1-alpha.0",
 		"@wordpress/i18n": "*"
 	},
 	"peerDependencies": {

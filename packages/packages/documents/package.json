@@ -1,6 +1,6 @@
 {
 	"name": "@elementor/documents",
-	"version": "0.0.0",
+	"version": "0.0.1-alpha.0",
 	"main": "dist/index.js",
 	"module": "dist/index.mjs",
 	"types": "dist/index.d.ts",
@@ -9,8 +9,8 @@
 		"dev": "tsup src/index.ts --format esm"
 	},
 	"dependencies": {
-		"@elementor/store": "*",
-		"@elementor/v1-adapters": "*"
+		"@elementor/store": "^0.0.1-alpha.0",
+		"@elementor/v1-adapters": "^0.0.1-alpha.0"
 	},
 	"peerDependencies": {
 		"react": "17.x"
