@@ -56,6 +56,17 @@ export default class AiLayoutBehavior extends Marionette.Behavior {
 			class: 'e-ai-layout-button elementor-add-section-area-button e-button-primary',
 			title: __( 'Build with AI', 'elementor' ),
 			role: 'button',
+			style: `
+				width: auto;
+				border-radius: 100vmax;
+				font-family: Roboto;
+				font-weight: 500;
+				display: flex;
+				gap: 8px;
+				padding: 4px 16px;
+				align-items: center;
+				justify-content: center;
+			`,
 		} );
 
 		$button.html( `
@@ -67,6 +78,8 @@ export default class AiLayoutBehavior extends Marionette.Behavior {
 			<div class="e-ai-layout-button--sparkle"></div>
 			<div class="e-ai-layout-button--sparkle"></div>
 			<i class="eicon-ai"></i>
+
+			<span style="font-size: 13px;">Build with AI</span>
 		` );
 
 		this.ui.addTemplateButton.after( $button );

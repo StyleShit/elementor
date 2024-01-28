@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Elementor
+ * Plugin Name: Elementor Copilot
  * Description: The Elementor Website Builder has it all: drag and drop page builder, pixel perfect design, mobile responsive editing, and more. Get started now!
  * Plugin URI: https://elementor.com/?utm_source=wp-plugins&utm_campaign=plugin-uri&utm_medium=wp-dash
  * Author: Elementor.com

@@ -240,7 +240,7 @@ abstract class Module extends Base_Object {
 			$url .= '.min';
 		}
 
-		return $url . '.' . $file_extension;
+		return $url . '.' . $file_extension . '?t=' . time();
 	}
 
 	/**

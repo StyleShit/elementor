@@ -140,6 +140,7 @@ export const importToEditor = ( {
 	template,
 	historyTitle,
 	replace = false,
+	edit = true,
 } ) => {
 	const endHistoryLog = startHistoryLog( {
 		type: 'import',
@@ -152,15 +153,17 @@ export const importToEditor = ( {
 		} );
 	}
 
-	$e.run( 'document/elements/create', {
+	const e = $e.run( 'document/elements/create', {
 		container: elementor.getPreviewContainer(),
 		model: generateIds( template ),
 		options: {
 			at,
-			edit: true,
+			edit,
 		},
 	} );
 
 	endHistoryLog();
+
+	return e;
 };
 

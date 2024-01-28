@@ -2,6 +2,7 @@ import AiLayoutBehavior from './ai-layout-behavior';
 import { importToEditor, renderLayoutApp } from './utils/editor-integration';
 import { __ } from '@wordpress/i18n';
 import { MODE_VARIATION } from './pages/form-layout/context/config';
+import CopilotBehavior from "./copilot-behavior";
 
 export default class Module extends elementorModules.editor.utils.Module {
 	onElementorInit() {
@@ -14,6 +15,10 @@ export default class Module extends elementorModules.editor.utils.Module {
 		behaviors.ai = {
 			behaviorClass: AiLayoutBehavior,
 		};
+
+		behaviors.copilot = {
+			behaviorClass: CopilotBehavior,
+		}
 
 		return behaviors;
 	}

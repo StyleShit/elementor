@@ -9,6 +9,8 @@ export class Drop extends $e.modules.CommandBase {
 		const { containers = [ args.container ], options = {} } = args,
 			result = [];
 
+		window.top.copilot.dismiss();
+
 		containers.forEach( ( container ) => {
 			result.push( container.view.createElementFromModel( args.model, options ) );
 		} );

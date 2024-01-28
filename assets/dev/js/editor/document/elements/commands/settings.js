@@ -121,6 +121,12 @@ export class Settings extends $e.modules.editor.document.CommandHistoryDebounceB
 				options,
 				settings: newSettings,
 			} );
+
+			if ( 'button' === container.model.get( 'widgetType' ) ) {
+				if ( 'click here' === newSettings.text?.trim().toLowerCase() ) {
+					window.top.copilot.nextSuggestion();
+				}
+			}
 		} );
 	}
 }
